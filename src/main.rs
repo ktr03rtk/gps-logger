@@ -1,23 +1,25 @@
 use serde::{Deserialize, Serialize};
 use std::{
     error,
+    fs::OpenOptions,
     io::{self, prelude::*},
     net, str,
 };
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Debug)]
 struct Query {
     class: String,
     enable: bool,
     json: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Default, Deserialize, Debug)]
+#[serde(default)]
 struct TPV {
     class: String,
     device: String,
     status: u8,
-    mode: u8,
+    mode: Option<u8>,
     time: String,
     ept: f64,
     lat: f64,
@@ -50,12 +52,25 @@ fn main() -> Result<(), Box<dyn error::Error>> {
         reader.fill_buf()?;
 
         let deserialized: Result<TPV, serde_json::Error> =
-            serde_json::from_str(str::from_utf8(reader.buffer()).unwrap());
+            serde_json::from_str(str::from_utf8(reader.buffer())?);
 
         // TODO: define other class type, SKY and so on, then deserialize and exclude them
         match deserialized {
-            Ok(n) => println!("successfully deserialized: {:?}", n),
-            Err(err) => println!("error deserialized: {}", err),
+            Ok(n) => match n.class.as_str() {
+                "TPV" => {
+                    let log = serde_json::to_string(&n)? + "\n";
+                    let file = OpenOptions::new()
+                        .append(true)
+                        .create(true)
+                        .open("gps.log")?;
+
+                    let mut f = io::BufWriter::new(file);
+                    f.write_all(log.as_bytes())?;
+                    f.flush()?;
+                }
+                _ => (),
+            },
+            Err(_err) => (),
         }
     }
 }
