@@ -6,6 +6,8 @@ services:
     privileged: true
     volumes:
       - .:/opt/gps-logger
+    environment:
+      TZ: Asia/Tokyo
     tty: true
     container_name: gps-logger
     network_mode: "host"
