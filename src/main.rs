@@ -38,8 +38,12 @@ struct TPV {
 }
 
 fn main() -> Result<(), Box<dyn error::Error>> {
+    let gps_addr = "127.0.0.1:2947";
+    let file_dir = "/var/log/gps-logger/";
+    let file_name = "gps.log";
+
     // Request to gpsd server
-    let mut stream = net::TcpStream::connect("127.0.0.1:2947")?;
+    let mut stream = net::TcpStream::connect(gps_addr)?;
 
     let request_query = Query {
         class: "WATCH".to_string(),
@@ -51,23 +55,25 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     stream.write_all(query.as_bytes())?;
 
     // Parse the response and save it to a file
-    fs::create_dir_all("/var/log/gps-logger")?;
+    fs::create_dir_all(file_dir)?;
+    let file_path = file_dir.to_string() + file_name;
+    let mut buf = vec![];
 
     loop {
         let mut reader = io::BufReader::new(&stream);
-        reader.fill_buf()?;
+        reader.read_until(b'\n', &mut buf)?;
 
         let deserialized: Result<TPV, serde_json::Error> =
-            serde_json::from_str(str::from_utf8(reader.buffer())?);
+            serde_json::from_str(str::from_utf8(&buf)?);
 
         match deserialized {
-            Ok(n) => match n.class.clone().unwrap().as_str() {
+            Ok(res) => match res.class.clone().unwrap().as_str() {
                 "TPV" => {
-                    let log = serde_json::to_string(&n)? + "\n";
+                    let log = serde_json::to_string(&res)? + "\n";
                     let file = OpenOptions::new()
                         .append(true)
                         .create(true)
-                        .open("/var/log/gps-logger/gps.log")?;
+                        .open(&file_path)?;
 
                     let mut f = io::BufWriter::new(file);
                     f.write_all(log.as_bytes())?;
@@ -76,7 +82,8 @@ fn main() -> Result<(), Box<dyn error::Error>> {
                 // Discard all classes except TPV
                 _ => (),
             },
-            Err(_err) => (),
+            Err(err) => println!("Unexpected error while deserialization, {:?}", err),
         }
+        buf.clear();
     }
 }
