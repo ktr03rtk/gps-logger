@@ -3,13 +3,8 @@ version: "3"
 services:
   gps-logger:
     build: .
-    privileged: true
-    volumes:
-      - .:/opt/gps-logger
+    container_name: gps-logger
     environment:
       TZ: Asia/Tokyo
     tty: true
-    container_name: gps-logger
     network_mode: "host"
-    cap_add:
-      - ALL

@@ -1,9 +1,9 @@
-FROM rust:1.49
-
-RUN apt update
-
-ENV APP_ROOT /opt/gps-logger
-WORKDIR $APP_ROOT
+FROM rust:1.50 as builder
+WORKDIR /usr/src/gps-logger
 COPY . .
+RUN cargo install --path .
 
-CMD /bin/sh
+FROM debian:10-slim
+RUN apt-get update && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /usr/local/cargo/bin/gps-logger /usr/local/bin/gps-logger
+CMD ["gps-logger"]
