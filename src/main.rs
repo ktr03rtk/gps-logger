@@ -1,8 +1,8 @@
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 use std::{
-    error, fs,
-    fs::OpenOptions,
+    error,
+    fs::{self, OpenOptions},
     io::{self, prelude::*},
     net, str,
 };
@@ -57,10 +57,11 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     // Parse the response and save it to a file
     fs::create_dir_all(file_dir)?;
     let file_path = file_dir.to_string() + file_name;
+
+    let mut reader = io::BufReader::new(&stream);
     let mut buf = vec![];
 
     loop {
-        let mut reader = io::BufReader::new(&stream);
         reader.read_until(b'\n', &mut buf)?;
 
         let deserialized: Result<TPV, serde_json::Error> =
