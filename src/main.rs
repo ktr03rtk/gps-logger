@@ -1,7 +1,7 @@
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 use std::{
-    error,
+    error, fs,
     fs::OpenOptions,
     io::{self, prelude::*},
     net, str,
@@ -38,40 +38,42 @@ struct TPV {
 }
 
 fn main() -> Result<(), Box<dyn error::Error>> {
+    // Request to gpsd server
     let mut stream = net::TcpStream::connect("127.0.0.1:2947")?;
 
-    let conditions = Query {
+    let request_query = Query {
         class: "WATCH".to_string(),
         enable: true,
         json: true,
     };
 
-    let query = format!("?WATCH={}\n", serde_json::to_string(&conditions)?);
+    let query = format!("?WATCH={}\n", serde_json::to_string(&request_query)?);
     stream.write_all(query.as_bytes())?;
+
+    // Parse the response and save it to a file
+    fs::create_dir_all("/var/log/gps-logger")?;
 
     loop {
         let mut reader = io::BufReader::new(&stream);
         reader.fill_buf()?;
 
-        // println!("{}", str::from_utf8(reader.buffer())?);
         let deserialized: Result<TPV, serde_json::Error> =
             serde_json::from_str(str::from_utf8(reader.buffer())?);
 
         match deserialized {
             Ok(n) => match n.class.clone().unwrap().as_str() {
                 "TPV" => {
-                    // println!("deserialize {:?}", n);
                     let log = serde_json::to_string(&n)? + "\n";
-                    // println!("Serialize {:?}", log);
                     let file = OpenOptions::new()
                         .append(true)
                         .create(true)
-                        .open("gps.log")?;
+                        .open("/var/log/gps-logger/gps.log")?;
 
                     let mut f = io::BufWriter::new(file);
                     f.write_all(log.as_bytes())?;
                     f.flush()?;
                 }
+                // Discard all classes except TPV
                 _ => (),
             },
             Err(_err) => (),
